@@ -6,3 +6,12 @@ a.out
 Thumbs.db
 .vscode/
 .idea/
+.vs/
+x64/
+Debug/
+*.obj
+*.pdb
+*.ilk
+*.db
+*.suo
+*.ipch  
