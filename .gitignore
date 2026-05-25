@@ -21,3 +21,4 @@ Debug/
 *.vcxproj.user 
 x64/ 
 DeepRoot/ 
+data/state.json 
