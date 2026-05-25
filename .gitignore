@@ -15,3 +15,9 @@ Debug/
 *.db
 *.suo
 *.ipch  
+*.sln 
+*.vcxproj 
+*.vcxproj.filters 
+*.vcxproj.user 
+x64/ 
+DeepRoot/ 
