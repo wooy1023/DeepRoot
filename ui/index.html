@@ -1,0 +1,2225 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeepRoot</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;700&display=swap");
+      :root {
+        --bg-dark: #1a1a2e;
+        --bg-mid: #16213e;
+        --accent: #e94560;
+        --accent2: #f5a623;
+        --green: #4ade80;
+        --blue: #60a5fa;
+        --purple: #c084fc;
+        --text: #eaeaea;
+        --text-dim: #8892a4;
+        --tile-a: #2a2a3e;
+        --tile-b: #252538;
+        --border: rgba(255, 255, 255, 0.08);
+        --pixel: "Press Start 2P", monospace;
+        --ui: "Noto Sans KR", sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--bg-dark);
+        color: var(--text);
+        font-family: var(--ui);
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        user-select: none;
+      }
+
+      /* HUD */
+      #hud {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 16px;
+        background: rgba(15, 52, 96, 0.95);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+        z-index: 10;
+      }
+      .hud-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .hud-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .hud-logo {
+        font-family: var(--pixel);
+        font-size: 10px;
+        color: var(--accent);
+        letter-spacing: 1px;
+      }
+      .hud-stat {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .hud-stat-label {
+        font-size: 9px;
+        color: var(--text-dim);
+      }
+      .hud-stat-val {
+        font-family: var(--pixel);
+        font-size: 9px;
+        color: var(--text);
+      }
+      .hp-bar {
+        width: 100px;
+        height: 7px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .hp-fill {
+        height: 100%;
+        background: var(--green);
+        border-radius: 2px;
+        transition: width 0.2s;
+      }
+      .kill-bar {
+        width: 90px;
+        height: 5px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .kill-fill {
+        height: 100%;
+        background: var(--accent2);
+        border-radius: 2px;
+        transition: width 0.3s;
+      }
+      .badge {
+        font-family: var(--pixel);
+        font-size: 8px;
+        padding: 4px 8px;
+        border-radius: 3px;
+      }
+      .badge-wave {
+        background: rgba(233, 69, 96, 0.2);
+        color: var(--accent);
+        border: 1px solid rgba(233, 69, 96, 0.4);
+      }
+      .badge-weapon {
+        background: rgba(245, 166, 35, 0.15);
+        color: var(--accent2);
+        border: 1px solid rgba(245, 166, 35, 0.3);
+      }
+
+      /* MAIN */
+      #main {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      /* 게임 화면 */
+      #game-area {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+        background: var(--bg-dark);
+        outline: none;
+      }
+      #dungeon-bg {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-columns: repeat(16, 1fr);
+        grid-template-rows: repeat(11, 1fr);
+      }
+      .tile {
+        border: 1px solid rgba(255, 255, 255, 0.025);
+      }
+      .tile:nth-child(odd) {
+        background: var(--tile-a);
+      }
+      .tile:nth-child(even) {
+        background: var(--tile-b);
+      }
+
+      /* 엔티티 */
+      .ent {
+        position: absolute;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+      .ent-body {
+        width: 34px;
+        height: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        border-radius: 5px;
+        transition: transform 0.05s;
+      }
+      .ent-hp {
+        width: 30px;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .ent-hp-fill {
+        height: 100%;
+        border-radius: 2px;
+        transition: width 0.15s;
+      }
+      .ent-label {
+        font-family: var(--pixel);
+        font-size: 5px;
+        color: var(--text-dim);
+        white-space: nowrap;
+      }
+
+      /* 플레이어 */
+      #player-el .ent-body {
+        background: rgba(74, 222, 128, 0.15);
+        border: 1.5px solid rgba(74, 222, 128, 0.6);
+        animation: pp 2s ease-in-out infinite;
+      }
+      @keyframes pp {
+        0%,
+        100% {
+          box-shadow: 0 0 6px rgba(74, 222, 128, 0.3);
+        }
+        50% {
+          box-shadow: 0 0 16px rgba(74, 222, 128, 0.7);
+        }
+      }
+      #player-el .ent-hp-fill {
+        background: var(--green);
+      }
+      #player-el.shooting .ent-body {
+        box-shadow: 0 0 12px rgba(245, 166, 35, 0.8);
+        border-color: var(--accent2);
+      }
+
+      /* 몬스터 */
+      .mob .ent-body {
+        background: rgba(233, 69, 96, 0.15);
+        border: 1.5px solid rgba(233, 69, 96, 0.35);
+      }
+      .mob .ent-hp-fill {
+        background: var(--accent);
+      }
+      .boss-mob .ent-body {
+        width: 52px;
+        height: 52px;
+        font-size: 28px;
+        background: rgba(233, 69, 96, 0.25);
+        border: 2px solid var(--accent);
+        animation: bp 1s ease-in-out infinite;
+      }
+      @keyframes bp {
+        0%,
+        100% {
+          box-shadow: 0 0 10px rgba(233, 69, 96, 0.5);
+        }
+        50% {
+          box-shadow: 0 0 30px rgba(233, 69, 96, 1);
+        }
+      }
+      .boss-mob .ent-hp {
+        width: 50px;
+      }
+
+      /* 투사체 */
+      .proj {
+        position: absolute;
+        pointer-events: none;
+        transform: translate(-50%, -50%);
+        z-index: 5;
+      }
+      .proj-inner {
+        width: 16px;
+        height: 16px;
+        image-rendering: pixelated;
+        display: block;
+      }
+      .proj-default .proj-inner {
+        width: 14px;
+        height: 5px;
+        border-radius: 3px;
+        background: var(--accent2);
+        box-shadow: 0 0 6px var(--accent2);
+      }
+      .proj-fire .proj-inner {
+        background: #ff6b35;
+        box-shadow:
+          0 0 8px #ff6b35,
+          0 0 16px #ff4400;
+      }
+      .proj-multi .proj-inner {
+        background: var(--blue);
+        box-shadow: 0 0 6px var(--blue);
+      }
+
+      /* 데미지 팝업 */
+      .dmg-pop {
+        position: absolute;
+        font-family: var(--pixel);
+        font-size: 10px;
+        pointer-events: none;
+        animation: dr 0.8s ease-out forwards;
+        z-index: 30;
+        transform: translateX(-50%);
+      }
+      .dmg-pop.p-dmg {
+        color: var(--accent);
+      }
+      .dmg-pop.m-dmg {
+        color: #fff;
+      }
+      @keyframes dr {
+        0% {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
+        100% {
+          opacity: 0;
+          transform: translateX(-50%) translateY(-44px);
+        }
+      }
+
+      /* 젬 */
+      .gem {
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        background: var(--green);
+        transform: rotate(45deg);
+        opacity: 0.7;
+        animation: gf 2.5s ease-in-out infinite;
+        pointer-events: none;
+      }
+      @keyframes gf {
+        0%,
+        100% {
+          transform: rotate(45deg) translateY(0);
+          opacity: 0.6;
+        }
+        50% {
+          transform: rotate(45deg) translateY(-6px);
+          opacity: 1;
+        }
+      }
+
+      /* 보스 미사일 */
+      .boss-missile {
+        position: absolute;
+        pointer-events: none;
+        transform: translate(-50%, -50%);
+        z-index: 6;
+      }
+      .boss-missile-inner {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: radial-gradient(circle, #ff4444, #880000);
+        box-shadow:
+          0 0 10px #ff4444,
+          0 0 20px #ff0000;
+        animation: missile-pulse 0.3s ease-in-out infinite;
+      }
+      @keyframes missile-pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.3);
+        }
+      }
+      .boss-missile-trail {
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: rgba(255, 80, 0, 0.5);
+        pointer-events: none;
+        z-index: 5;
+        animation: trail-fade 0.4s ease-out forwards;
+      }
+      @keyframes trail-fade {
+        0% {
+          opacity: 0.7;
+          transform: scale(1);
+        }
+        100% {
+          opacity: 0;
+          transform: scale(0.2);
+        }
+      }
+
+      /* 보스 돌진 경고선 */
+      .dash-warning {
+        position: absolute;
+        height: 3px;
+        background: rgba(233, 69, 96, 0.9);
+        pointer-events: none;
+        transform-origin: left center;
+        z-index: 8;
+        box-shadow: 0 0 10px var(--accent);
+      }
+      .dash-warning.blink {
+        animation: warn-blink 0.25s ease-in-out infinite;
+      }
+      @keyframes warn-blink {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.2;
+        }
+      }
+
+      /* 보스 HP 바 (화면 상단) */
+      #boss-hpbar {
+        display: none;
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 60%;
+        z-index: 10;
+        text-align: center;
+      }
+      #boss-hpbar.show {
+        display: block;
+      }
+      #boss-hpbar-label {
+        font-family: var(--pixel);
+        font-size: 8px;
+        color: var(--accent);
+        margin-bottom: 4px;
+      }
+      #boss-hpbar-bg {
+        height: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 5px;
+        overflow: hidden;
+        border: 1px solid rgba(233, 69, 96, 0.4);
+      }
+      #boss-hpbar-fill {
+        height: 100%;
+        background: var(--accent);
+        border-radius: 5px;
+        transition: width 0.2s;
+      }
+
+      /* 우측 패널 */
+      #side-panel {
+        width: 210px;
+        background: rgba(15, 52, 96, 0.85);
+        border-left: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .side-section {
+        padding: 11px;
+        border-bottom: 1px solid var(--border);
+      }
+      .side-title {
+        font-family: var(--pixel);
+        font-size: 7px;
+        color: var(--text-dim);
+        letter-spacing: 0.1em;
+        margin-bottom: 9px;
+      }
+      #minimap {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 3px;
+      }
+      .mini-room {
+        height: 26px;
+        border-radius: 3px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.04);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 7px;
+        color: var(--text-dim);
+      }
+      .mini-room.current {
+        background: rgba(74, 222, 128, 0.2);
+        border-color: rgba(74, 222, 128, 0.5);
+        color: var(--green);
+      }
+      .mini-room.boss-room {
+        background: rgba(233, 69, 96, 0.1);
+        border-color: rgba(233, 69, 96, 0.3);
+        color: var(--accent);
+        opacity: 0.35;
+      }
+      .mini-room.boss-room.unlocked {
+        opacity: 1;
+      }
+      .tree-node {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 6px;
+        border-radius: 4px;
+        margin-bottom: 3px;
+        font-size: 10px;
+      }
+      .tree-node.active {
+        background: rgba(96, 165, 250, 0.15);
+        color: var(--blue);
+        border: 1px solid rgba(96, 165, 250, 0.4);
+        font-weight: 700;
+      }
+      .tree-node.unlocked {
+        background: rgba(74, 222, 128, 0.08);
+        color: var(--green);
+        border: 1px solid rgba(74, 222, 128, 0.2);
+      }
+      .tree-node.available {
+        background: rgba(245, 166, 35, 0.08);
+        color: var(--accent2);
+        border: 1px solid rgba(245, 166, 35, 0.2);
+      }
+      .tree-node.locked {
+        color: var(--text-dim);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      .tree-children {
+        margin-left: 10px;
+        padding-left: 8px;
+        border-left: 1px solid rgba(255, 255, 255, 0.07);
+        margin-top: 2px;
+      }
+      #log-wrap {
+        flex: 1;
+        overflow-y: auto;
+        padding: 9px 11px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+      }
+      .log-line {
+        font-size: 10px;
+        line-height: 1.5;
+        padding: 2px 5px;
+        border-radius: 3px;
+        color: var(--text-dim);
+      }
+      .log-line.combat {
+        color: var(--accent);
+        background: rgba(233, 69, 96, 0.05);
+      }
+      .log-line.upgrade {
+        color: var(--purple);
+        background: rgba(192, 132, 252, 0.07);
+      }
+      .log-line.level {
+        color: var(--accent2);
+        background: rgba(245, 166, 35, 0.07);
+        font-weight: 700;
+      }
+      .log-line.system {
+        color: var(--text-dim);
+      }
+      .log-line.boss {
+        color: var(--accent);
+        background: rgba(233, 69, 96, 0.1);
+        font-weight: 700;
+      }
+
+      /* 하단 바 */
+      #action-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: rgba(15, 52, 96, 0.95);
+        border-top: 1px solid var(--border);
+        flex-shrink: 0;
+        font-family: var(--pixel);
+        font-size: 8px;
+      }
+      .key-hint {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--text-dim);
+      }
+      .key {
+        padding: 3px 7px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text);
+      }
+      .action-hint {
+        font-size: 10px;
+        color: var(--text-dim);
+        margin-left: 10px;
+        font-family: var(--ui);
+      }
+      .boss-btn {
+        font-family: var(--pixel);
+        font-size: 8px;
+        padding: 7px 14px;
+        background: rgba(233, 69, 96, 0.3);
+        color: var(--accent);
+        border: 1px solid rgba(233, 69, 96, 0.6);
+        border-radius: 4px;
+        cursor: pointer;
+        margin-left: auto;
+        display: none;
+        animation: bbp 1.5s ease-in-out infinite;
+      }
+      @keyframes bbp {
+        0%,
+        100% {
+          box-shadow: 0 0 5px rgba(233, 69, 96, 0.3);
+        }
+        50% {
+          box-shadow: 0 0 14px rgba(233, 69, 96, 0.7);
+        }
+      }
+      #mute-btn {
+        font-family: var(--pixel);
+        font-size: 7px;
+        padding: 5px 10px;
+        background: transparent;
+        color: var(--text-dim);
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        cursor: pointer;
+        margin-left: 8px;
+      }
+
+      /* 오버레이 */
+      .overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(10, 10, 20, 0.88);
+        z-index: 50;
+        align-items: center;
+        justify-content: center;
+      }
+      .overlay.show {
+        display: flex;
+      }
+      .popup-box {
+        background: var(--bg-mid);
+        border-radius: 8px;
+        padding: 24px;
+        width: 340px;
+      }
+      .popup-title {
+        font-family: var(--pixel);
+        font-size: 10px;
+        margin-bottom: 6px;
+        letter-spacing: 1px;
+      }
+      .popup-sub {
+        font-size: 11px;
+        color: var(--text-dim);
+        margin-bottom: 16px;
+      }
+      .weapon-opt {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 11px;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        transition: background 0.15s;
+      }
+      .weapon-opt:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .weapon-opt-icon {
+        font-size: 24px;
+        width: 36px;
+        text-align: center;
+      }
+      .weapon-opt-name {
+        font-size: 12px;
+        font-weight: 700;
+        margin-bottom: 2px;
+      }
+      .weapon-opt-desc {
+        font-size: 10px;
+        color: var(--text-dim);
+      }
+      .weapon-opt-dmg {
+        font-family: var(--pixel);
+        font-size: 7px;
+        color: var(--accent2);
+        margin-top: 3px;
+      }
+
+      /* 시작화면 */
+      #start-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(10, 10, 20, 0.97);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+        gap: 18px;
+      }
+      .start-title {
+        font-family: var(--pixel);
+        font-size: 26px;
+        color: var(--accent);
+        letter-spacing: 4px;
+        animation: flicker 3s ease-in-out infinite;
+      }
+      @keyframes flicker {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        92% {
+          opacity: 1;
+        }
+        93% {
+          opacity: 0.5;
+        }
+        94% {
+          opacity: 1;
+        }
+        96% {
+          opacity: 0.6;
+        }
+        97% {
+          opacity: 1;
+        }
+      }
+      .start-sub {
+        font-family: var(--pixel);
+        font-size: 9px;
+        color: var(--text-dim);
+        letter-spacing: 2px;
+      }
+      .start-btn {
+        font-family: var(--pixel);
+        font-size: 11px;
+        padding: 13px 30px;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        letter-spacing: 2px;
+        animation: bounce 1.5s ease-in-out infinite;
+      }
+      @keyframes bounce {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-4px);
+        }
+      }
+      .start-rules {
+        font-size: 10px;
+        color: var(--text-dim);
+        line-height: 2.2;
+        border: 1px solid var(--border);
+        padding: 12px 18px;
+        border-radius: 6px;
+      }
+      .start-rules span {
+        color: var(--accent2);
+        font-weight: 700;
+      }
+
+      /* 결과 */
+      #result-popup .popup-box {
+        text-align: center;
+      }
+      #result-popup .popup-title {
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+      .result-btn {
+        font-family: var(--pixel);
+        font-size: 9px;
+        padding: 9px 18px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-top: 14px;
+        color: #fff;
+        letter-spacing: 1px;
+      }
+
+      /* 보스 팝업 */
+      #boss-popup .popup-box {
+        border: 1px solid rgba(233, 69, 96, 0.4);
+        text-align: center;
+      }
+      #boss-popup .popup-title {
+        color: var(--accent);
+        font-size: 12px;
+        text-align: center;
+      }
+      .boss-enter-btn {
+        font-family: var(--pixel);
+        font-size: 9px;
+        padding: 9px 18px;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-top: 14px;
+        letter-spacing: 1px;
+      }
+
+      /* 피격 플래시 */
+      #hit-flash {
+        position: absolute;
+        inset: 0;
+        background: rgba(233, 69, 96, 0);
+        pointer-events: none;
+        z-index: 20;
+        transition: background 0.05s;
+      }
+      #hit-flash.flash {
+        background: rgba(233, 69, 96, 0.18);
+      }
+
+      /* 맵 전환 연출 */
+      #map-transition {
+        position: fixed;
+        inset: 0;
+        background: #000;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 80;
+        transition: opacity 0.5s;
+      }
+      #map-transition.fade-in {
+        opacity: 1;
+        pointer-events: all;
+      }
+      #map-transition-text {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 81;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.4s;
+        gap: 14px;
+      }
+      #map-transition-text.show {
+        opacity: 1;
+      }
+      #map-transition-text .tr-title {
+        font-family: var(--pixel);
+        font-size: 18px;
+        color: var(--accent);
+        letter-spacing: 3px;
+      }
+      #map-transition-text .tr-sub {
+        font-family: var(--pixel);
+        font-size: 9px;
+        color: var(--text-dim);
+        letter-spacing: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 시작 -->
+    <div id="start-overlay">
+      <div class="start-title">DEEP ROOT</div>
+      <div class="start-sub">— dungeon crawler —</div>
+      <div class="start-rules">
+        <div>🎮 <span>WASD / 방향키</span> 로 이동</div>
+        <div>🏹 이동 방향으로 <span>자동 발사</span></div>
+        <div>🟡 <span>Lv.2</span> : 10마리 처치</div>
+        <div>🟡 <span>Lv.3</span> : 30마리 처치</div>
+        <div>💀 <span>BOSS</span> : 60마리 처치 후 이동</div>
+        <div>🔇 우하단 MUTE 버튼으로 음소거</div>
+      </div>
+      <button class="start-btn" onclick="startGame()">▶ PLAY</button>
+      <div style="font-size: 11px; color: var(--text-dim)">
+        팀 malloc() &nbsp;|&nbsp; DeepRoot
+      </div>
+    </div>
+
+    <!-- 무기 선택 팝업 -->
+    <div class="overlay" id="weapon-popup">
+      <div class="popup-box">
+        <div class="popup-title" id="wp-title" style="color: var(--accent2)">
+          ⚔ LEVEL UP!
+        </div>
+        <div class="popup-sub" id="wp-sub">강화할 무기를 선택하세요</div>
+        <div id="wp-options"></div>
+      </div>
+    </div>
+
+    <!-- 보스 팝업 -->
+    <div class="overlay" id="boss-popup">
+      <div class="popup-box">
+        <div class="popup-title">⚠ BOSS ROOM</div>
+        <div style="font-size: 40px; margin: 12px 0">💀</div>
+        <div style="font-size: 11px; color: var(--text-dim); line-height: 1.8">
+          Lv.3 달성!<br />보스가 기다립니다. 준비되면 입장하세요.
+        </div>
+        <button class="boss-enter-btn" onclick="enterBoss()">▶ 입장</button>
+      </div>
+    </div>
+
+    <!-- 결과 팝업 -->
+    <div class="overlay" id="result-popup">
+      <div class="popup-box">
+        <div class="popup-title" id="res-title"></div>
+        <div style="font-size: 40px; margin: 10px 0" id="res-emoji"></div>
+        <div
+          style="font-size: 11px; color: var(--text-dim); line-height: 1.8"
+          id="res-desc"
+        ></div>
+        <button
+          class="result-btn"
+          onclick="location.reload()"
+          style="background: var(--accent)"
+        >
+          ↺ 다시 시작
+        </button>
+      </div>
+    </div>
+
+    <!-- 맵 전환 오버레이 -->
+    <div id="map-transition"></div>
+    <div id="map-transition-text">
+      <div class="tr-title">BOSS ROOM</div>
+      <div class="tr-sub">— 최후의 전투 —</div>
+    </div>
+
+    <!-- HUD -->
+    <div id="hud">
+      <div class="hud-left">
+        <div class="hud-logo">DEEP ROOT</div>
+        <div class="hud-stat">
+          <span class="hud-stat-label">HP</span>
+          <div class="hp-bar"><div class="hp-fill" id="hp-fill"></div></div>
+          <span class="hud-stat-val" id="hp-text">100/100</span>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-stat-label">LEVEL</span>
+          <span class="hud-stat-val" id="lv-text">Lv.1</span>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-stat-label">ATK</span>
+          <span class="hud-stat-val" id="atk-text">15</span>
+        </div>
+        <div class="hud-stat">
+          <span class="hud-stat-label"
+            >처치 <span id="kill-text">0/10</span></span
+          >
+          <div class="kill-bar">
+            <div class="kill-fill" id="kill-fill" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+      <div class="hud-right">
+        <span class="badge badge-weapon" id="weapon-badge">🏹 기본 활</span>
+        <span class="badge badge-wave" id="wave-badge">WAVE 1</span>
+      </div>
+    </div>
+
+    <!-- 메인 -->
+    <div id="main">
+      <div id="game-area" tabindex="0">
+        <div id="dungeon-bg"></div>
+        <div id="hit-flash"></div>
+        <div id="boss-hpbar">
+          <div id="boss-hpbar-label">💀 BOSS</div>
+          <div id="boss-hpbar-bg">
+            <div id="boss-hpbar-fill" style="width: 100%"></div>
+          </div>
+        </div>
+      </div>
+      <div id="side-panel">
+        <div class="side-section">
+          <div class="side-title">▸ DUNGEON MAP</div>
+          <div id="minimap">
+            <div class="mini-room current" id="map-r1">MAP 1</div>
+            <div class="mini-room" style="opacity: 0"></div>
+            <div class="mini-room boss-room" id="map-boss">BOSS</div>
+          </div>
+        </div>
+        <div class="side-section">
+          <div class="side-title">▸ WEAPON TREE</div>
+          <div id="weapon-tree"></div>
+        </div>
+        <div class="side-title" style="padding: 10px 11px 0">▸ BATTLE LOG</div>
+        <div id="log-wrap"></div>
+      </div>
+    </div>
+
+    <!-- 하단 바 -->
+    <div id="action-bar">
+      <div class="key-hint">
+        <span class="key">W</span><span class="key">A</span
+        ><span class="key">S</span><span class="key">D</span>
+        <span style="color: var(--text-dim)">이동 + 발사</span>
+      </div>
+      <div class="key-hint" style="margin-left: 6px">
+        <span class="key">↑↓←→</span>
+        <span style="color: var(--text-dim)">이동</span>
+      </div>
+      <span class="action-hint" id="action-hint">몬스터를 처치하세요!</span>
+      <button id="mute-btn" onclick="toggleMute()">🔊 MUTE</button>
+    </div>
+
+    <script>
+      // ══════════════════════════════════════
+      //  사운드 엔진 (Web Audio API)
+      // ══════════════════════════════════════
+      let audioCtx = null,
+        muted = false,
+        bgmNodes = [],
+        bossBgmNodes = [];
+
+      function getCtx() {
+        if (!audioCtx)
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        return audioCtx;
+      }
+
+      function playTone(freq, type, dur, vol, freqEnd) {
+        if (muted) return;
+        try {
+          const ctx = getCtx();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = type || "square";
+          osc.frequency.setValueAtTime(freq, ctx.currentTime);
+          if (freqEnd)
+            osc.frequency.exponentialRampToValueAtTime(
+              freqEnd,
+              ctx.currentTime + dur,
+            );
+          gain.gain.setValueAtTime(vol || 0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + dur);
+        } catch (e) {}
+      }
+
+      // 효과음
+      function sfxArrow() {
+        playTone(900, "sawtooth", 0.08, 0.08, 400);
+      }
+      function sfxHit() {
+        playTone(180, "square", 0.12, 0.18, 80);
+      }
+      function sfxKill() {
+        playTone(440, "sine", 0.05, 0.1);
+        setTimeout(() => playTone(660, "sine", 0.08, 0.1), 60);
+      }
+      function sfxLevelUp() {
+        [330, 440, 550, 660, 880].forEach((f, i) =>
+          setTimeout(() => playTone(f, "sine", 0.15, 0.15), i * 80),
+        );
+      }
+      function sfxPlayerHit() {
+        playTone(200, "sawtooth", 0.15, 0.2, 100);
+        const fl = document.getElementById("hit-flash");
+        fl.classList.add("flash");
+        setTimeout(() => fl.classList.remove("flash"), 120);
+      }
+      function sfxBossAppear() {
+        [110, 100, 90, 80, 150].forEach((f, i) =>
+          setTimeout(() => playTone(f, "sawtooth", 0.3, 0.3), i * 120),
+        );
+      }
+      function sfxGameClear() {
+        [523, 659, 784, 1047].forEach((f, i) =>
+          setTimeout(() => playTone(f, "sine", 0.3, 0.2), i * 150),
+        );
+      }
+      function sfxGameOver() {
+        [440, 330, 220, 110].forEach((f, i) =>
+          setTimeout(() => playTone(f, "sawtooth", 0.3, 0.25), i * 150),
+        );
+      }
+
+      // BGM (단순 루프 패턴)
+      function startBGM() {
+        if (muted) return;
+        stopBGM();
+        const pattern = [220, 246, 261, 293, 220, 196, 220, 246];
+        let i = 0;
+        function tick() {
+          if (muted) return;
+          try {
+            const ctx = getCtx();
+            const osc = ctx.createOscillator(),
+              gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = "triangle";
+            osc.frequency.value = pattern[i % pattern.length];
+            gain.gain.setValueAtTime(0.06, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(
+              0.001,
+              ctx.currentTime + 0.22,
+            );
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.22);
+            bgmNodes.push(osc);
+          } catch (e) {}
+          i++;
+        }
+        tick();
+        const id = setInterval(() => {
+          if (!G.isBoss && G.started && !G.gameOver) tick();
+        }, 250);
+        bgmNodes.push({ stop: () => clearInterval(id) });
+      }
+
+      function startBossBGM() {
+        stopBGM();
+        if (muted) return;
+        const pattern = [110, 130, 110, 98, 110, 130, 146, 130];
+        let i = 0;
+        function tick() {
+          if (muted) return;
+          try {
+            const ctx = getCtx();
+            const osc = ctx.createOscillator(),
+              gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = "sawtooth";
+            osc.frequency.value = pattern[i % pattern.length];
+            gain.gain.setValueAtTime(0.07, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(
+              0.001,
+              ctx.currentTime + 0.18,
+            );
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.18);
+          } catch (e) {}
+          i++;
+        }
+        tick();
+        const id = setInterval(() => {
+          if (G.isBoss && !G.gameOver) tick();
+        }, 200);
+        bossBgmNodes.push({ stop: () => clearInterval(id) });
+      }
+
+      function stopBGM() {
+        [...bgmNodes, ...bossBgmNodes].forEach((n) => {
+          try {
+            n.stop && n.stop();
+          } catch (e) {}
+        });
+        bgmNodes = [];
+        bossBgmNodes = [];
+      }
+
+      function toggleMute() {
+        muted = !muted;
+        document.getElementById("mute-btn").textContent = muted
+          ? "🔇 UNMUTE"
+          : "🔊 MUTE";
+        if (!muted && G.started && !G.gameOver) {
+          G.isBoss ? startBossBGM() : startBGM();
+        } else {
+          stopBGM();
+        }
+      }
+
+      const WTREE = {
+        root: {
+          name: "기본 활",
+          tier: 1,
+          icon: "<img src='assets/icon_bow.png' style='width:20px;height:20px;image-rendering:pixelated;'>",
+          dmg: 15,
+          rate: 1200,
+          pierce: false,
+          multi: 1,
+          desc: "기본 지급 활",
+          color: "var(--text)",
+          children: ["단궁", "석궁"],
+        },
+        단궁: {
+          name: "단궁",
+          tier: 2,
+          icon: "<img src='assets/icon_shortbow.png' style='width:20px;height:20px;image-rendering:pixelated;'>",
+          dmg: 22,
+          rate: 600,
+          pierce: false,
+          multi: 1,
+          desc: "빠른 연사, ATK+7",
+          color: "var(--blue)",
+          children: ["불화살", "연발"],
+        },
+        석궁: {
+          name: "석궁",
+          tier: 2,
+          icon: "<img src='assets/icon_crossbow.png' style='width:20px;height:20px;image-rendering:pixelated;'>",
+          dmg: 42,
+          rate: 1800,
+          pierce: true,
+          multi: 1,
+          desc: "강한 한방, 관통",
+          color: "var(--accent2)",
+          children: ["폭발살", "관통강화"],
+        },
+        불화살: {
+          name: "불화살",
+          tier: 3,
+          icon: "<img src='assets/fire_arrow.png' style='width:20px;height:20px;image-rendering:pixelated;'>",
+          dmg: 35,
+          rate: 650,
+          pierce: true,
+          multi: 1,
+          desc: "관통 + 화염 데미지",
+          color: "#ff6b35",
+          children: [],
+        },
+        연발: {
+          name: "연발",
+          tier: 3,
+          icon: "<img src='assets/multi_arrow.png' style='width:20px;height:20px;image-rendering:pixelated;'>",
+          dmg: 20,
+          rate: 700,
+          pierce: false,
+          multi: 3,
+          desc: "3방향 동시 발사",
+          color: "var(--blue)",
+          children: [],
+        },
+        폭발살: {
+          name: "폭발살",
+          tier: 3,
+          icon: "<img src='assets/fire_arrow.png' style='width:20px;height:20px;image-rendering:pixelated;'>",
+          dmg: 55,
+          rate: 2000,
+          pierce: true,
+          multi: 1,
+          desc: "초강력 단발, 관통",
+          color: "var(--accent2)",
+          children: [],
+        },
+        관통강화: {
+          name: "관통강화",
+          tier: 3,
+          icon: "<img src='assets/arrow.png' style='width:20px;height:20px;image-rendering:pixelated;'>",
+          dmg: 48,
+          rate: 1400,
+          pierce: true,
+          multi: 1,
+          desc: "관통 + 고데미지",
+          color: "var(--purple)",
+          children: [],
+        },
+      };
+
+      // ══════════════════════════════════════
+      //  게임 상태
+      // ══════════════════════════════════════
+      const LEVEL_KILLS = [0, 10, 30, 60];
+      const G = {
+        started: false,
+        paused: false,
+        isBoss: false,
+        gameOver: false,
+        player: {
+          x: 0,
+          y: 0,
+          hp: 100,
+          maxHp: 100,
+          atk: 15,
+          level: 1,
+          spd: 2.4,
+          dir: { x: 1, y: 0 },
+        },
+        weaponKey: "root",
+        kills: 0,
+        wave: 1,
+        monsters: [],
+        projectiles: [],
+        bossMissiles: [],
+        keys: {},
+        lastSpawn: 0,
+        spawnInterval: 1600,
+        lastShot: 0,
+        bossHp: 300,
+        bossMaxHp: 300,
+      };
+
+      let gameArea, rAF;
+
+      // ══════════════════════════════════════
+      //  DOM 빌드
+      // ══════════════════════════════════════
+      function buildTiles() {
+        const bg = document.getElementById("dungeon-bg");
+        for (let i = 0; i < 176; i++) {
+          const t = document.createElement("div");
+          t.className = "tile";
+          bg.appendChild(t);
+        }
+      }
+
+      function mkPlayerEl() {
+        const el = document.createElement("div");
+        el.id = "player-el";
+        el.className = "ent";
+        el.innerHTML = `
+    <div style="position:relative;display:inline-block;">
+      <div class="ent-body">🧑</div>
+      <div id="weapon-icon" style="position:absolute;bottom:-2px;right:-6px;width:16px;height:16px;"><img src='assets/icon_bow.png' style='width:16px;height:16px;image-rendering:pixelated;'></div>
+    </div>
+    <div class="ent-hp"><div class="ent-hp-fill" style="width:100%;background:var(--green);"></div></div>
+    <div class="ent-label">PLAYER</div>`;
+        gameArea.appendChild(el);
+        return el;
+      }
+
+      function mkMonsterEl(mob) {
+        const el = document.createElement("div");
+        el.className = "ent " + (mob.isBoss ? "boss-mob" : "mob");
+        el.dataset.id = mob.id;
+        el.innerHTML = `<div class="ent-body">${mob.isBoss ? "💀" : "🧟"}</div><div class="ent-hp"><div class="ent-hp-fill" style="width:100%;"></div></div><div class="ent-label">${mob.name}</div>`;
+        gameArea.appendChild(el);
+        return el;
+      }
+
+      function setPos(el, x, y) {
+        if (el) {
+          el.style.left = x + "px";
+          el.style.top = y + "px";
+        }
+      }
+
+      function updateMobEl(mob) {
+        if (!mob.el) return;
+        setPos(mob.el, mob.x, mob.y);
+        const f = mob.el.querySelector(".ent-hp-fill");
+        if (f) f.style.width = Math.max(0, (mob.hp / mob.maxHp) * 100) + "%";
+      }
+
+      function updatePlayerEl() {
+        const el = document.getElementById("player-el");
+        if (!el) return;
+        const weaponIconMap = {
+          root: "assets/icon_bow.png",
+          단궁: "assets/icon_shortbow.png",
+          석궁: "assets/icon_crossbow.png",
+          불화살: "assets/icon_shortbow.png",
+          연발: "assets/icon_shortbow.png",
+          폭발살: "assets/icon_crossbow.png",
+          관통강화: "assets/icon_crossbow.png",
+        };
+        const wi = el.querySelector("#weapon-icon");
+        if (wi)
+          wi.innerHTML = `<img src='${weaponIconMap[G.weaponKey] || "assets/icon_bow.png"}' style='width:16px;height:16px;image-rendering:pixelated;'>`;
+        setPos(el, G.player.x, G.player.y);
+        const f = el.querySelector(".ent-hp-fill");
+        if (f)
+          f.style.width =
+            Math.max(0, (G.player.hp / G.player.maxHp) * 100) + "%";
+      }
+
+      // ══════════════════════════════════════
+      //  스폰
+      // ══════════════════════════════════════
+      function spawnMonster(isBoss = false) {
+        const W = gameArea.offsetWidth,
+          H = gameArea.offsetHeight;
+        const side = Math.floor(Math.random() * 4);
+        let sx, sy;
+        if (side === 0) {
+          sx = Math.random() * W;
+          sy = -50;
+        } else if (side === 1) {
+          sx = W + 50;
+          sy = Math.random() * H;
+        } else if (side === 2) {
+          sx = Math.random() * W;
+          sy = H + 50;
+        } else {
+          sx = -50;
+          sy = Math.random() * H;
+        }
+        const names = ["고블린", "좀비", "오크", "스켈레톤", "임프"];
+        const lv = G.player.level;
+        const mob = {
+          id: Date.now() + Math.random(),
+          x: sx,
+          y: sy,
+          hp: isBoss ? G.bossMaxHp : 25 + lv * 12,
+          maxHp: isBoss ? G.bossMaxHp : 25 + lv * 12,
+          atk: isBoss ? 20 : 5 + lv * 2,
+          spd: isBoss ? 0.9 : 0.5 + Math.random() * 0.25,
+          normalSpd: isBoss ? 0.9 : 0.5 + Math.random() * 0.25,
+          name: isBoss
+            ? "BOSS"
+            : names[Math.floor(Math.random() * names.length)],
+          isBoss,
+          el: null,
+          lastAtk: 0,
+          atkCool: 1000,
+          // 보스 돌진 스킬
+          dashState: "idle",
+          dashTimer: 0,
+          dashInterval: 3500,
+          dashDir: { x: 0, y: 0 },
+          lastDash: 0,
+          warningEl: null,
+          // 보스 미사일
+          lastMissile: 0,
+          missileInterval: 2500,
+        };
+        mob.el = mkMonsterEl(mob);
+        G.monsters.push(mob);
+        setPos(mob.el, mob.x, mob.y);
+      }
+
+      // ══════════════════════════════════════
+      //  투사체
+      // ══════════════════════════════════════
+      function fireProjectile() {
+        const w = WTREE[G.weaponKey];
+        const d = G.player.dir;
+        const angles =
+          w.multi === 3
+            ? [0, -0.26, 0.26] // 연발: ±15도
+            : [0];
+        angles.forEach((offset) => {
+          const cos = Math.cos(offset),
+            sin = Math.sin(offset);
+          const dx2 = d.x * cos - d.y * sin,
+            dy2 = d.x * sin + d.y * cos;
+          const len = Math.sqrt(dx2 * dx2 + dy2 * dy2) || 1;
+          const proj = {
+            id: Date.now() + Math.random(),
+            x: G.player.x,
+            y: G.player.y,
+            dx: (dx2 / len) * 7,
+            dy: (dy2 / len) * 7,
+            dmg: G.player.atk,
+            pierce: w.pierce,
+            pierced: 0,
+            type: G.weaponKey,
+            el: null,
+          };
+          const el = document.createElement("div");
+          // 무기별 투사체 이미지 매핑
+          const projImgMap = {
+            root: "assets/arrow.png",
+            단궁: "assets/arrow.png",
+            석궁: "assets/arrow.png",
+            불화살: "assets/fire_arrow.png",
+            연발: "assets/multi_arrow.png",
+            폭발살: "assets/fire_arrow.png",
+            관통강화: "assets/arrow.png",
+          };
+          const projImg = projImgMap[G.weaponKey] || "assets/arrow.png";
+          el.className = "proj";
+          el.innerHTML = `<img class="proj-inner" src="${projImg}" draggable="false" onerror="this.style.cssText='width:14px;height:5px;border-radius:3px;background:#f5a623;box-shadow:0 0 6px #f5a623;display:block;'">`;
+          // 화살 각도
+          const angle = (Math.atan2(dy2, dx2) * 180) / Math.PI;
+          el.style.transform = `translate(-50%,-50%) rotate(${angle + 225}deg)`;
+          el.style.left = proj.x + "px";
+          el.style.top = proj.y + "px";
+          gameArea.appendChild(el);
+          proj.el = el;
+          G.projectiles.push(proj);
+        });
+        sfxArrow();
+        // 발사 모션
+        const pel = document.getElementById("player-el");
+        if (pel) {
+          pel.classList.add("shooting");
+          setTimeout(() => pel.classList.remove("shooting"), 120);
+        }
+      }
+
+      // ══════════════════════════════════════
+      //  게임 루프
+      // ══════════════════════════════════════
+      function gameLoop(ts) {
+        if (G.gameOver || G.paused) {
+          rAF = requestAnimationFrame(gameLoop);
+          return;
+        }
+        const W = gameArea.offsetWidth,
+          H = gameArea.offsetHeight;
+        const p = G.player;
+        const now = performance.now();
+
+        // 입력 → 방향
+        let dx = 0,
+          dy = 0;
+        if (G.keys["ArrowUp"] || G.keys["w"] || G.keys["W"]) dy -= 1;
+        if (G.keys["ArrowDown"] || G.keys["s"] || G.keys["S"]) dy += 1;
+        if (G.keys["ArrowLeft"] || G.keys["a"] || G.keys["A"]) dx -= 1;
+        if (G.keys["ArrowRight"] || G.keys["d"] || G.keys["D"]) dx += 1;
+
+        // 이동 방향 정규화 & 방향 기억
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 0) {
+          const nx = dx / len,
+            ny = dy / len;
+          p.x = Math.max(20, Math.min(W - 20, p.x + nx * p.spd));
+          p.y = Math.max(20, Math.min(H - 20, p.y + ny * p.spd));
+          p.dir = { x: nx, y: ny };
+        }
+        updatePlayerEl();
+
+        // 자동 발사 (이동 중이든 아니든 마지막 방향으로)
+        const w = WTREE[G.weaponKey];
+        if (now - G.lastShot > w.rate) {
+          G.lastShot = now;
+          fireProjectile();
+        }
+
+        // 투사체 이동 & 충돌
+        G.projectiles.forEach((proj) => {
+          proj.x += proj.dx;
+          proj.y += proj.dy;
+          if (proj.el) {
+            proj.el.style.left = proj.x + "px";
+            proj.el.style.top = proj.y + "px";
+          }
+          // 맵 밖
+          if (
+            proj.x < -40 ||
+            proj.x > W + 40 ||
+            proj.y < -40 ||
+            proj.y > H + 40
+          ) {
+            proj.el?.remove();
+            proj.el = null;
+            proj.dead = true;
+            return;
+          }
+          // 몬스터 충돌
+          G.monsters.forEach((mob) => {
+            if (proj.dead || !mob.el) return;
+            const hitR = mob.isBoss ? 30 : 20;
+            const ddx = proj.x - mob.x,
+              ddy = proj.y - mob.y;
+            if (Math.sqrt(ddx * ddx + ddy * ddy) < hitR) {
+              mob.hp -= proj.dmg;
+              dmgPop(mob.x, mob.y - 14, proj.dmg, "m-dmg");
+              sfxHit();
+              updateMobEl(mob);
+              if (mob.isBoss) {
+                const pct = Math.max(0, (mob.hp / mob.maxHp) * 100);
+                document.getElementById("boss-hpbar-fill").style.width =
+                  pct + "%";
+              }
+              if (mob.hp <= 0) killMob(mob);
+              if (!proj.pierce) {
+                proj.el?.remove();
+                proj.el = null;
+                proj.dead = true;
+              } else {
+                proj.pierced = (proj.pierced || 0) + 1;
+                if (proj.pierced >= 3) {
+                  proj.el?.remove();
+                  proj.el = null;
+                  proj.dead = true;
+                }
+              }
+            }
+          });
+        });
+        G.projectiles = G.projectiles.filter((p) => !p.dead);
+
+        // 몬스터 이동 & 근접 공격
+        G.monsters.forEach((mob) => {
+          if (!mob.el) return;
+          const mdx = p.x - mob.x,
+            mdy = p.y - mob.y;
+          const dist = Math.sqrt(mdx * mdx + mdy * mdy);
+
+          if (mob.isBoss) {
+            // ── 보스 돌진 스킬 ──
+            if (mob.dashState === "idle") {
+              // 일반 추적
+              if (dist > 1) {
+                mob.x += (mdx / dist) * mob.spd;
+                mob.y += (mdy / dist) * mob.spd;
+              }
+              // 미사일 발사
+              if (now - mob.lastMissile > mob.missileInterval) {
+                mob.lastMissile = now;
+                fireBossMissile(mob, -1); // 왼쪽 포물선
+                setTimeout(() => {
+                  if (!G.gameOver) fireBossMissile(mob, 1);
+                }, 300); // 오른쪽 포물선
+              }
+              // 돌진 쿨타임 체크
+              if (now - mob.lastDash > mob.dashInterval) {
+                mob.dashState = "warning";
+                mob.dashTimer = now;
+                const dlen = Math.sqrt(mdx * mdx + mdy * mdy) || 1;
+                mob.dashDir = { x: mdx / dlen, y: mdy / dlen };
+                showDashWarning(mob);
+                addLog("[보스] 돌진 준비!", "boss");
+              }
+            } else if (mob.dashState === "warning") {
+              // 경고 중 (0.5초): 멈춤
+              updateDashWarning(mob);
+              if (now - mob.dashTimer > 500) {
+                mob.dashState = "dashing";
+                mob.dashTimer = now;
+                removeDashWarning(mob);
+                addLog("[보스] 돌진!", "boss");
+                sfxBossDash();
+              }
+            } else if (mob.dashState === "dashing") {
+              // 돌진 (0.5초): 고속 이동
+              mob.x += mob.dashDir.x * 12;
+              mob.y += mob.dashDir.y * 12;
+              if (now - mob.dashTimer > 500) {
+                mob.dashState = "cooldown";
+                mob.dashTimer = now;
+                mob.lastDash = now;
+              }
+            } else if (mob.dashState === "cooldown") {
+              // 쿨다운 (1초)
+              if (dist > 1) {
+                mob.x += (mdx / dist) * mob.spd;
+                mob.y += (mdy / dist) * mob.spd;
+              }
+              if (now - mob.dashTimer > 1000) mob.dashState = "idle";
+            }
+          } else {
+            // 일반 몬스터
+            if (dist > 1) {
+              mob.x += (mdx / dist) * mob.spd;
+              mob.y += (mdy / dist) * mob.spd;
+            }
+          }
+
+          updateMobEl(mob);
+
+          // 근접 데미지
+          const hitR = mob.isBoss ? 38 : 24;
+          const atkDmg =
+            mob.isBoss && mob.dashState === "dashing" ? mob.atk * 2 : mob.atk;
+          if (dist < hitR && now - mob.lastAtk > mob.atkCool) {
+            mob.lastAtk = now;
+            p.hp = Math.max(0, p.hp - atkDmg);
+            sfxPlayerHit();
+            updateHUD();
+            if (mob.dashState === "dashing")
+              addLog(`[돌진 피격!] -${atkDmg} HP`, "boss");
+            else addLog(`[피격] ${mob.name}의 공격 -${atkDmg} HP`, "combat");
+            if (p.hp <= 0) {
+              endGame(false);
+              return;
+            }
+          }
+        });
+
+        // 스폰
+        if (!G.isBoss && now - G.lastSpawn > G.spawnInterval) {
+          G.lastSpawn = now;
+          const max = 4 + G.player.level * 2;
+          if (G.monsters.length < max) spawnMonster();
+        }
+
+        // 보스 미사일 업데이트
+        G.bossMissiles.forEach((m) => {
+          if (m.dead) return;
+          // 직선 이동
+          m.x += m.vx;
+          m.y += m.vy;
+          m.traveled += Math.sqrt(m.vx * m.vx + m.vy * m.vy);
+          // 포물선: 진행 비율에 따라 sin 곡선 오프셋
+          const ratio = Math.min(m.traveled / (m.totalDist || 400), 1);
+          const curve = Math.sin(ratio * Math.PI) * m.curveAmt;
+          const drawX = m.x + m.perpX * curve;
+          const drawY = m.y + m.perpY * curve;
+          if (m.el) {
+            m.el.style.left = drawX + "px";
+            m.el.style.top = drawY + "px";
+            // 트레일
+            if (Math.random() < 0.5) {
+              const tr = document.createElement("div");
+              tr.className = "boss-missile-trail";
+              tr.style.left = drawX + "px";
+              tr.style.top = drawY + "px";
+              gameArea.appendChild(tr);
+              setTimeout(() => tr.remove(), 400);
+            }
+          }
+          // 맵 밖
+          const W2 = gameArea.offsetWidth,
+            H2 = gameArea.offsetHeight;
+          if (
+            drawX < -30 ||
+            drawX > W2 + 30 ||
+            drawY < -30 ||
+            drawY > H2 + 30 ||
+            m.traveled > m.totalDist * 1.6
+          ) {
+            m.el?.remove();
+            m.el = null;
+            m.dead = true;
+            return;
+          }
+          // 플레이어 충돌 (실제 화면 좌표 기준)
+          const pdx = drawX - p.x,
+            pdy = drawY - p.y;
+          if (Math.sqrt(pdx * pdx + pdy * pdy) < 18) {
+            p.hp = Math.max(0, p.hp - m.dmg);
+            sfxPlayerHit();
+            updateHUD();
+            addLog(`[미사일 피격] -${m.dmg} HP`, "boss");
+            m.el?.remove();
+            m.el = null;
+            m.dead = true;
+            if (p.hp <= 0) {
+              endGame(false);
+              return;
+            }
+          }
+        });
+        G.bossMissiles = G.bossMissiles.filter((m) => !m.dead);
+
+        rAF = requestAnimationFrame(gameLoop);
+      }
+
+      // ══════════════════════════════════════
+      //  처치 & 레벨
+      // ══════════════════════════════════════
+      function killMob(mob) {
+        mob.el?.remove();
+        mob.el = null;
+        G.monsters = G.monsters.filter((m) => m !== mob);
+        sfxKill();
+        if (mob.isBoss) {
+          endGame(true);
+          return;
+        }
+        G.kills++;
+        G.wave++;
+        spawnGem(mob.x, mob.y);
+        addLog(`✓ ${mob.name} 처치! (${G.kills}마리)`, "combat");
+        document.getElementById("wave-badge").textContent = "WAVE " + G.wave;
+        updateHUD();
+        checkLevelUp();
+      }
+
+      function checkLevelUp() {
+        const lv = G.player.level;
+        if (lv < 2 && G.kills >= 10) {
+          doLevelUp(2);
+          return;
+        }
+        if (lv < 3 && G.kills >= 30) {
+          doLevelUp(3);
+          return;
+        }
+        if (lv >= 3 && G.kills >= 60) autoEnterBoss();
+      }
+
+      function doLevelUp(newLv) {
+        G.player.level = newLv;
+        sfxLevelUp();
+        addLog(`★ LEVEL UP! Lv.${newLv} 달성!`, "level");
+        G.paused = true;
+        showWeaponPopup();
+      }
+
+      // ══════════════════════════════════════
+      //  무기 팝업
+      // ══════════════════════════════════════
+      function showWeaponPopup() {
+        const cur = WTREE[G.weaponKey];
+        document.getElementById("wp-title").textContent =
+          `⚔ LEVEL UP! Lv.${G.player.level}`;
+        const container = document.getElementById("wp-options");
+        container.innerHTML = "";
+        cur.children.forEach((key) => {
+          const w = WTREE[key];
+          const div = document.createElement("div");
+          div.className = "weapon-opt";
+          div.innerHTML = `<div class="weapon-opt-icon">${w.icon}</div><div><div class="weapon-opt-name" style="color:${w.color};">${w.name} (tier ${w.tier})</div><div class="weapon-opt-desc">${w.desc}</div><div class="weapon-opt-dmg">ATK ${w.dmg} | 발사속도 ${(1000 / w.rate).toFixed(1)}/s${w.pierce ? " | 관통" : ""}${w.multi > 1 ? " | " + w.multi + "방향" : ""}</div></div>`;
+          div.onclick = () => selectWeapon(key);
+          container.appendChild(div);
+        });
+        document.getElementById("weapon-popup").classList.add("show");
+      }
+
+      function selectWeapon(key) {
+        const w = WTREE[key];
+        G.weaponKey = key;
+        G.player.atk = w.dmg;
+        document.getElementById("weapon-popup").classList.remove("show");
+        addLog(
+          `[무기] ${w.icon} ${w.name} 장착! ATK ${w.dmg} | ${(1000 / w.rate).toFixed(1)}/s`,
+          "upgrade",
+        );
+        updateHUD();
+        updateTree();
+        updatePlayerEl();
+        // Lv.3 무기 선택 완료 → 바로 자동 보스 진입 체크
+        if (G.player.level >= 3 && G.kills >= 60) {
+          autoEnterBoss();
+        } else {
+          G.paused = false;
+        }
+      }
+
+      // ══════════════════════════════════════
+      //  자동 보스방 전환
+      // ══════════════════════════════════════
+      function autoEnterBoss() {
+        if (G.isBoss) return;
+        G.paused = true;
+        addLog("💀 보스방으로 이동합니다...", "boss");
+        document.getElementById("map-boss").classList.add("unlocked");
+        document.getElementById("action-hint").textContent =
+          "보스방 이동 중...";
+
+        const tr = document.getElementById("map-transition");
+        const trText = document.getElementById("map-transition-text");
+
+        // 페이드 아웃
+        tr.classList.add("fade-in");
+        setTimeout(() => {
+          trText.classList.add("show");
+        }, 500);
+
+        // 맵 전환 실행
+        setTimeout(() => {
+          enterBoss();
+        }, 1600);
+
+        // 페이드 인
+        setTimeout(() => {
+          trText.classList.remove("show");
+          tr.classList.remove("fade-in");
+          G.paused = false;
+        }, 2600);
+      }
+
+      function enterBoss() {
+        G.isBoss = true;
+        G.bossHp = 1000;
+        G.bossMaxHp = 1000;
+        G.monsters.forEach((m) => {
+          removeDashWarning(m);
+          m.el?.remove();
+        });
+        G.monsters = [];
+        G.projectiles.forEach((p) => {
+          p.el?.remove();
+        });
+        G.projectiles = [];
+        G.bossMissiles.forEach((m) => {
+          m.el?.remove();
+        });
+        G.bossMissiles = [];
+        document.querySelectorAll(".gem").forEach((g) => g.remove());
+        document.getElementById("map-r1").classList.remove("current");
+        document.getElementById("map-boss").classList.add("current");
+        document.getElementById("action-hint").textContent =
+          "보스를 처치하세요!";
+        document.getElementById("boss-hpbar").classList.add("show");
+        sfxBossAppear();
+        addLog("💀 보스 등장! 최종 전투!", "boss");
+        stopBGM();
+        setTimeout(startBossBGM, 800);
+        // 보스 진입 시 최종 업그레이드 팝업
+        setTimeout(() => {
+          showFinalUpgrade();
+        }, 1200);
+      }
+
+      // 보스방 진입 시 최종 업그레이드
+      function showFinalUpgrade() {
+        G.paused = true;
+        const cur = WTREE[G.weaponKey];
+        // tier3 무기면 업그레이드 없음
+        if (!cur.children || cur.children.length === 0) {
+          G.paused = false;
+          setTimeout(() => spawnMonster(true), 500);
+          return;
+        }
+        document.getElementById("wp-title").textContent = "⚔ 최종 업그레이드!";
+        document.getElementById("wp-sub").textContent =
+          "보스전 무기를 선택하세요";
+        const container = document.getElementById("wp-options");
+        container.innerHTML = "";
+        cur.children.forEach((key) => {
+          const w = WTREE[key];
+          const div = document.createElement("div");
+          div.className = "weapon-opt";
+          div.style.borderColor = w.color;
+          div.innerHTML = `<div class="weapon-opt-icon">${w.icon}</div><div><div class="weapon-opt-name" style="color:${w.color};">${w.name} (tier ${w.tier})</div><div class="weapon-opt-desc">${w.desc}</div><div class="weapon-opt-dmg">ATK ${w.dmg} | ${(1000 / w.rate).toFixed(1)}/s${w.pierce ? " | 관통" : ""}${w.multi > 1 ? " | " + w.multi + "방향" : ""}</div></div>`;
+          div.onclick = () => {
+            selectWeaponFinal(key);
+          };
+          container.appendChild(div);
+        });
+        document.getElementById("weapon-popup").classList.add("show");
+      }
+
+      function selectWeaponFinal(key) {
+        const w = WTREE[key];
+        G.weaponKey = key;
+        G.player.atk = w.dmg;
+        document.getElementById("weapon-popup").classList.remove("show");
+        G.paused = false;
+        addLog(`[최종 무기] ${w.icon} ${w.name} 장착!`, "upgrade");
+        updateHUD();
+        updateTree();
+        updatePlayerEl();
+        setTimeout(() => spawnMonster(true), 500);
+      }
+
+      // ── 보스 돌진 경고선 ──
+      function showDashWarning(mob) {
+        const el = document.createElement("div");
+        el.className = "dash-warning";
+        gameArea.appendChild(el);
+        mob.warningEl = el;
+        updateDashWarning(mob);
+      }
+
+      function updateDashWarning(mob) {
+        if (!mob.warningEl || !gameArea) return;
+        const W = gameArea.offsetWidth,
+          H = gameArea.offsetHeight;
+        const angle =
+          (Math.atan2(mob.dashDir.y, mob.dashDir.x) * 180) / Math.PI;
+        const len = Math.sqrt(W * W + H * H);
+        mob.warningEl.style.left = mob.x + "px";
+        mob.warningEl.style.top = mob.y + "px";
+        mob.warningEl.style.width = len + "px";
+        mob.warningEl.style.transform = `translateY(-50%) rotate(${angle}deg)`;
+      }
+
+      function removeDashWarning(mob) {
+        if (mob.warningEl) {
+          mob.warningEl.remove();
+          mob.warningEl = null;
+        }
+      }
+
+      function sfxBossDash() {
+        playTone(60, "sawtooth", 0.25, 0.35, 200);
+        setTimeout(() => playTone(300, "square", 0.1, 0.2), 80);
+      }
+
+      function sfxMissile() {
+        playTone(500, "sawtooth", 0.06, 0.12, 300);
+      }
+
+      // ── 보스 미사일 발사 ──
+      function fireBossMissile(boss, curveDir) {
+        const p = G.player;
+        // 발사 시점 플레이어 좌표 고정
+        const targetX = p.x,
+          targetY = p.y;
+        const mdx = targetX - boss.x,
+          mdy = targetY - boss.y;
+        const dlen = Math.sqrt(mdx * mdx + mdy * mdy) || 1;
+        const nx = mdx / dlen,
+          ny = mdy / dlen;
+        // 수직 방향 (포물선 휘는 축)
+        const perpX = -ny * curveDir,
+          perpY = nx * curveDir;
+        // 총 이동 거리 기반 속도
+        const speed = 5.5;
+
+        const angle = (Math.atan2(ny, nx) * 180) / Math.PI;
+        const el = document.createElement("div");
+        el.className = "boss-missile";
+        el.innerHTML = `<img src="assets/missile.png" style="width:12px;height:12px;image-rendering:pixelated;display:block;transform:rotate(${angle + 225}deg);">`;
+        el.style.left = boss.x + "px";
+        el.style.top = boss.y + "px";
+        gameArea.appendChild(el);
+
+        const missile = {
+          id: Date.now() + Math.random(),
+          // 시작 좌표
+          sx: boss.x,
+          sy: boss.y,
+          // 직선 방향 속도
+          vx: nx * speed,
+          vy: ny * speed,
+          // 현재 좌표
+          x: boss.x,
+          y: boss.y,
+          // 포물선 수직축
+          perpX,
+          perpY,
+          curveAmt: 70 + Math.random() * 40,
+          // 총 예상 거리 (sin 진폭 계산용)
+          totalDist: dlen,
+          traveled: 0,
+          dmg: 18,
+          el,
+          dead: false,
+        };
+        G.bossMissiles.push(missile);
+        sfxMissile();
+      }
+
+      function endGame(win) {
+        G.gameOver = true;
+        G.paused = true;
+        stopBGM();
+        win ? sfxGameClear() : sfxGameOver();
+        const w = WTREE[G.weaponKey];
+        document.getElementById("res-title").textContent = win
+          ? "🎉 GAME CLEAR!"
+          : "💀 GAME OVER";
+        document.getElementById("res-title").style.color = win
+          ? "var(--green)"
+          : "var(--accent)";
+        document.getElementById("res-emoji").textContent = win ? "🏆" : "💀";
+        document.getElementById("res-desc").innerHTML = win
+          ? `보스 처치 성공!<br>처치 수: ${G.kills}마리 &nbsp;|&nbsp; 최종 무기: ${w.icon} ${w.name}`
+          : `체력이 0이 되었습니다.<br>처치 수: ${G.kills}마리`;
+        setTimeout(
+          () => document.getElementById("result-popup").classList.add("show"),
+          600,
+        );
+      }
+
+      // ══════════════════════════════════════
+      //  UI 유틸
+      // ══════════════════════════════════════
+      function spawnGem(x, y) {
+        const el = document.createElement("div");
+        el.className = "gem";
+        el.style.left = x + "px";
+        el.style.top = y + "px";
+        el.style.animationDelay = Math.random() * 1.2 + "s";
+        gameArea.appendChild(el);
+        setTimeout(() => el.remove(), 3000);
+      }
+
+      function dmgPop(x, y, val, cls) {
+        const el = document.createElement("div");
+        el.className = "dmg-pop " + cls;
+        el.textContent = (cls === "p-dmg" ? "-" : "") + val;
+        el.style.left = x + "px";
+        el.style.top = y + "px";
+        gameArea.appendChild(el);
+        setTimeout(() => el.remove(), 800);
+      }
+
+      function updateHUD() {
+        const p = G.player,
+          w = WTREE[G.weaponKey];
+        document.getElementById("hp-fill").style.width =
+          (p.hp / p.maxHp) * 100 + "%";
+        document.getElementById("hp-text").textContent = p.hp + "/" + p.maxHp;
+        document.getElementById("lv-text").textContent = "Lv." + p.level;
+        document.getElementById("atk-text").textContent = p.atk;
+        document.getElementById("weapon-badge").innerHTML =
+          (w?.icon ||
+            "<img src='assets/icon_bow.png' style='width:14px;height:14px;image-rendering:pixelated;vertical-align:middle;'>") +
+          " " +
+          (w?.name || "기본 활");
+        const nextK = LEVEL_KILLS[p.level] || 60;
+        const base = p.level === 3 ? 30 : p.level === 2 ? 10 : 0;
+        const pct =
+          p.level >= 3
+            ? Math.min(((G.kills - 30) / 30) * 100, 100)
+            : Math.min(((G.kills - base) / (nextK - base)) * 100, 100);
+        document.getElementById("kill-fill").style.width =
+          Math.max(0, pct) + "%";
+        document.getElementById("kill-text").textContent =
+          G.kills + "/" + (p.level >= 3 ? 60 : nextK);
+      }
+
+      function updateTree() {
+        const container = document.getElementById("weapon-tree");
+        container.innerHTML = "";
+        const path = getPath();
+        function render(key, depth) {
+          const node = WTREE[key];
+          if (!node) return;
+          const isCur = key === G.weaponKey,
+            inPath = path.includes(key);
+          const par = getParent(key);
+          const parOk = !par || path.includes(par);
+          const avail =
+            parOk &&
+            !inPath &&
+            node.tier === (WTREE[G.weaponKey]?.tier || 1) + 1;
+          const cls = isCur
+            ? "active"
+            : inPath
+              ? "unlocked"
+              : avail
+                ? "available"
+                : "locked";
+          const wrap =
+            depth > 0
+              ? Object.assign(document.createElement("div"), {
+                  className: "tree-children",
+                })
+              : null;
+          const el = document.createElement("div");
+          el.className = "tree-node " + cls;
+          el.innerHTML = `<span>${node.icon}</span><span style="flex:1">${node.name}</span><span style="font-family:var(--pixel);font-size:7px;color:var(--text-dim);">${node.dmg}</span>`;
+          if (wrap) {
+            wrap.appendChild(el);
+            container.appendChild(wrap);
+          } else container.appendChild(el);
+          node.children.forEach((c) => render(c, depth + 1));
+        }
+        render("root", 0);
+      }
+
+      function getPath() {
+        const path = [];
+        let cur = G.weaponKey;
+        while (cur) {
+          path.unshift(cur);
+          cur = getParent(cur);
+        }
+        return path;
+      }
+      function getParent(key) {
+        for (const [k, v] of Object.entries(WTREE)) {
+          if (v.children?.includes(key)) return k;
+        }
+        return null;
+      }
+
+      function addLog(msg, type) {
+        const wrap = document.getElementById("log-wrap");
+        const line = document.createElement("div");
+        line.className = "log-line " + (type || "system");
+        line.textContent = msg;
+        wrap.appendChild(line);
+        wrap.scrollTop = wrap.scrollHeight;
+      }
+
+      // ══════════════════════════════════════
+      //  게임 시작
+      // ══════════════════════════════════════
+      function startGame() {
+        document.getElementById("start-overlay").style.display = "none";
+        gameArea = document.getElementById("game-area");
+        gameArea.focus();
+        G.started = true;
+        G.player.x = gameArea.offsetWidth / 2;
+        G.player.y = gameArea.offsetHeight / 2;
+        mkPlayerEl();
+        updateHUD();
+        updateTree();
+        addLog("[시스템] WAVE 1 시작!", "system");
+        addLog(
+          "[조작] WASD / 방향키로 이동, 이동 방향으로 자동 발사",
+          "system",
+        );
+
+        window.addEventListener("keydown", (e) => {
+          G.keys[e.key] = true;
+          if (
+            ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(
+              e.key,
+            )
+          )
+            e.preventDefault();
+        });
+        window.addEventListener("keyup", (e) => {
+          G.keys[e.key] = false;
+        });
+
+        // 첫 몬스터 순차 스폰
+        [400, 800, 1200].forEach((t) => setTimeout(() => spawnMonster(), t));
+
+        startBGM();
+        rAF = requestAnimationFrame(gameLoop);
+
+        // JSON 연동 (C 백엔드 연동 시 활성화)
+        setInterval(reloadState, 100);
+      }
+      // ══════════════════════════════════════
+      //  C 백엔드 JSON 연동
+      // ══════════════════════════════════════
+      async function reloadState() {
+        try {
+          const res = await fetch("../data/state.json?t=" + Date.now());
+          if (!res.ok) return;
+          const s = await res.json();
+
+          // 플레이어 상태 동기화
+          if (s.player) {
+            G.player.hp = s.player.hp;
+            G.player.maxHp = s.player.max_hp;
+            G.player.atk = s.player.attack;
+            G.player.level = s.player.level;
+            G.player.x = s.player.x;
+            G.player.y = s.player.y;
+          }
+
+          // 처치 수 / 웨이브 동기화
+          if (s.kills !== undefined) G.kills = s.kills;
+          if (s.wave !== undefined) G.wave = s.wave;
+
+          // 메시지
+          if (s.message) addLog(s.message, "system");
+
+          // HUD 갱신
+          updateHUD();
+        } catch (e) {
+          // 파일 없으면 무시
+        }
+      }
+      buildTiles();
+    </script>
+  </body>
+</html>
