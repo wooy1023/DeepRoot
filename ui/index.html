@@ -145,7 +145,7 @@
         grid-template-rows: repeat(11, 1fr);
       }
       .tile {
-        border: 1px solid rgba(255, 255, 255, 0.025);
+        border: none;
       }
       .tile:nth-child(odd) {
         background: var(--tile-a);
@@ -873,9 +873,9 @@
       <div class="start-rules">
         <div>🎮 <span>WASD / 방향키</span> 로 이동</div>
         <div>🏹 이동 방향으로 <span>자동 발사</span></div>
-        <div>🟡 <span>Lv.2</span> : 10마리 처치</div>
-        <div>🟡 <span>Lv.3</span> : 30마리 처치</div>
-        <div>💀 <span>BOSS</span> : 60마리 처치 후 이동</div>
+        <div>🟡 <span>Lv.2</span> : 5마리 처치</div>
+        <div>🟡 <span>Lv.3</span> : 10마리 처치</div>
+        <div>💀 <span>BOSS</span> : 20마리 처치 후 이동</div>
         <div>🔇 우하단 MUTE 버튼으로 음소거</div>
       </div>
       <button class="start-btn" onclick="startGame()">▶ PLAY</button>
@@ -1303,6 +1303,10 @@
         for (let i = 0; i < 176; i++) {
           const t = document.createElement("div");
           t.className = "tile";
+          t.style.backgroundImage = "url('assets/tile_floor.png')";
+          t.style.backgroundSize = "100% 100%";
+          t.style.imageRendering = "pixelated";
+          t.style.border = "none";
           bg.appendChild(t);
         }
       }
@@ -1312,12 +1316,12 @@
         el.id = "player-el";
         el.className = "ent";
         el.innerHTML = `
-    <div style="position:relative;display:inline-block;">
-      <div class="ent-body">🧑</div>
-      <div id="weapon-icon" style="position:absolute;bottom:-2px;right:-6px;width:16px;height:16px;"><img src='assets/icon_bow.png' style='width:16px;height:16px;image-rendering:pixelated;'></div>
-    </div>
-    <div class="ent-hp"><div class="ent-hp-fill" style="width:100%;background:var(--green);"></div></div>
-    <div class="ent-label">PLAYER</div>`;
+          <div style="position:relative;display:inline-block;">
+            <div class="ent-body"><img id="player-img" src="assets/player_down.png" style="width:28px;height:28px;image-rendering:pixelated;"></div>
+            <div id="weapon-icon" style="position:absolute;bottom:-2px;right:-6px;width:16px;height:16px;"><img src='assets/icon_bow.png' style='width:16px;height:16px;image-rendering:pixelated;'></div>
+          </div>
+          <div class="ent-hp"><div class="ent-hp-fill" style="width:100%;background:var(--green);"></div></div>
+          <div class="ent-label">PLAYER</div>`;
         gameArea.appendChild(el);
         return el;
       }
@@ -1326,7 +1330,10 @@
         const el = document.createElement("div");
         el.className = "ent " + (mob.isBoss ? "boss-mob" : "mob");
         el.dataset.id = mob.id;
-        el.innerHTML = `<div class="ent-body">${mob.isBoss ? "💀" : "🧟"}</div><div class="ent-hp"><div class="ent-hp-fill" style="width:100%;"></div></div><div class="ent-label">${mob.name}</div>`;
+        const mobImg = mob.isBoss
+          ? `<img src="assets/boss.png" style="width:44px;height:44px;image-rendering:pixelated;">`
+          : `<img src="assets/zombie.png" style="width:28px;height:28px;image-rendering:pixelated;">`;
+        el.innerHTML = `<div class="ent-body">${mobImg}</div><div class="ent-hp"><div class="ent-hp-fill" style="width:100%;"></div></div><div class="ent-label">${mob.name}</div>`;
         gameArea.appendChild(el);
         return el;
       }
@@ -1343,11 +1350,53 @@
         setPos(mob.el, mob.x, mob.y);
         const f = mob.el.querySelector(".ent-hp-fill");
         if (f) f.style.width = Math.max(0, (mob.hp / mob.maxHp) * 100) + "%";
+
+        // 보스 돌진 이미지 교체
+        if (mob.isBoss) {
+          const bossImg = mob.el.querySelector(".ent-body img");
+          if (bossImg) {
+            bossImg.src =
+              mob.dashState === "dashing"
+                ? "assets/boss_dash.png"
+                : "assets/boss.png";
+          }
+        }
       }
 
       function updatePlayerEl() {
         const el = document.getElementById("player-el");
         if (!el) return;
+
+        // 방향별 플레이어 이미지
+        const dirImgMap = {
+          right: "assets/player_right.png",
+          left: "assets/player_left.png",
+          up: "assets/player_up.png",
+          down: "assets/player_down.png",
+          up_right: "assets/player_up.png",
+          up_left: "assets/player_up.png",
+          down_right: "assets/player_right.png",
+          down_left: "assets/player_left.png",
+        };
+
+        // 현재 방향 계산
+        const d = G.player.dir;
+        let dirKey = "down";
+        if (d.x > 0 && d.y < 0) dirKey = "up_right";
+        else if (d.x < 0 && d.y < 0) dirKey = "up_left";
+        else if (d.x > 0 && d.y > 0) dirKey = "down_right";
+        else if (d.x < 0 && d.y > 0) dirKey = "down_left";
+        else if (d.x > 0) dirKey = "right";
+        else if (d.x < 0) dirKey = "left";
+        else if (d.y < 0) dirKey = "up";
+        else if (d.y > 0) dirKey = "down";
+
+        // 플레이어 이미지 교체
+        const playerImg = el.querySelector("#player-img");
+        if (playerImg)
+          playerImg.src = dirImgMap[dirKey] || "assets/player_down.png";
+
+        // 무기 아이콘
         const weaponIconMap = {
           root: "assets/icon_bow.png",
           단궁: "assets/icon_shortbow.png",
@@ -1360,13 +1409,13 @@
         const wi = el.querySelector("#weapon-icon");
         if (wi)
           wi.innerHTML = `<img src='${weaponIconMap[G.weaponKey] || "assets/icon_bow.png"}' style='width:16px;height:16px;image-rendering:pixelated;'>`;
+
         setPos(el, G.player.x, G.player.y);
         const f = el.querySelector(".ent-hp-fill");
         if (f)
           f.style.width =
             Math.max(0, (G.player.hp / G.player.maxHp) * 100) + "%";
       }
-
       // ══════════════════════════════════════
       //  스폰
       // ══════════════════════════════════════
@@ -1747,7 +1796,7 @@
         G.kills++;
         G.wave++;
         spawnGem(mob.x, mob.y);
-        addLog(`✓ ${mob.name} 처치! (${G.kills}마리)`, "combat");
+        addLog(`✓ 좀비 처치! (${G.kills}마리)`, "combat");
         document.getElementById("wave-badge").textContent = "WAVE " + G.wave;
         updateHUD();
         checkLevelUp();
@@ -1755,15 +1804,15 @@
 
       function checkLevelUp() {
         const lv = G.player.level;
-        if (lv < 2 && G.kills >= 10) {
+        if (lv < 2 && G.kills >= 5) {
           doLevelUp(2);
           return;
         }
-        if (lv < 3 && G.kills >= 30) {
+        if (lv < 3 && G.kills >= 10) {
           doLevelUp(3);
           return;
         }
-        if (lv >= 3 && G.kills >= 60) autoEnterBoss();
+        if (lv >= 3 && G.kills >= 20) autoEnterBoss();
       }
 
       function doLevelUp(newLv) {
@@ -2069,16 +2118,16 @@
             "<img src='assets/icon_bow.png' style='width:14px;height:14px;image-rendering:pixelated;vertical-align:middle;'>") +
           " " +
           (w?.name || "기본 활");
-        const nextK = LEVEL_KILLS[p.level] || 60;
-        const base = p.level === 3 ? 30 : p.level === 2 ? 10 : 0;
+        const nextK = p.level === 1 ? 5 : p.level === 2 ? 10 : 20;
+        const base = p.level === 3 ? 10 : p.level === 2 ? 5 : 0;
         const pct =
           p.level >= 3
-            ? Math.min(((G.kills - 30) / 30) * 100, 100)
+            ? Math.min(((G.kills - 10) / 10) * 100, 100)
             : Math.min(((G.kills - base) / (nextK - base)) * 100, 100);
         document.getElementById("kill-fill").style.width =
           Math.max(0, pct) + "%";
         document.getElementById("kill-text").textContent =
-          G.kills + "/" + (p.level >= 3 ? 60 : nextK);
+          G.kills + "/" + nextK;
       }
 
       function updateTree() {
